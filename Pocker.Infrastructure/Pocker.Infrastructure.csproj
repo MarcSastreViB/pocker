@@ -1,4 +1,4 @@
-﻿s<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -9,6 +9,16 @@
   <ItemGroup>
     <ProjectReference Include="..\Pocker.Application\Pocker.Application.csproj" />
     <ProjectReference Include="..\Pocker.Domain\Pocker.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Random\" />
+    <Folder Include="Time\" />
+    <Folder Include="Security\" />
+    <Folder Include="Persistence\InMemory\" />
+    <Folder Include="Persistence\Mongo\Config\" />
+    <Folder Include="Persistence\Mongo\Migrations\" />
+    <Folder Include="Persistence\Mongo\Repositories\" />
   </ItemGroup>
 
 </Project>

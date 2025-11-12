@@ -6,4 +6,14 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Folder Include="Aggregates\Player\" />
+    <Folder Include="Aggregates\Table\" />
+    <Folder Include="Entities\" />
+    <Folder Include="DomainEvents\" />
+    <Folder Include="Errors\" />
+    <Folder Include="Services\" />
+    <Folder Include="ValueObjects\" />
+  </ItemGroup>
+
 </Project>
