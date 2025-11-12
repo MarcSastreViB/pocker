@@ -1,76 +1,85 @@
-# Roadmap backend Texas Holdíem con .NET, DDD y Clean Architecture
+# Roadmap backend Texas Hold‚Äôem con .NET, DDD y Clean Architecture
 
-Este documento describe una ruta de implementaciÛn incremental para un backend de pÛker Texas Holdíem con ASP.NET Core siguiendo DDD y Clean Architecture. Incluye estructuras, pasos, comandos y diagramas para visualizar el flujo de datos y eventos. El objetivo es aprender construyendo una base sÛlida, escalable y bien separada en capas.
+Este documento describe una ruta de implementaci√≥n incremental para un backend de p√≥ker Texas Hold‚Äôem con ASP.NET Core siguiendo DDD y Clean Architecture. Incluye estructuras, pasos, comandos y diagramas para visualizar el flujo de datos y eventos. El objetivo es aprender construyendo una base s√≥lida, escalable y bien separada en capas.
 
 Decisiones clave del proyecto
-- Variante: Texas Holdíem.
+- Variante: Texas Hold‚Äôem.
 - Capas: Domain, Application, Infrastructure, Api (ASP.NET Core).
 - CQRS con MediatR; validaciones con FluentValidation.
-- Persistencia: InMemory al inicio; MongoDB m·s adelante (proceso incremental).
-- AutenticaciÛn: anÛnimos y registrados (JWT). Empezar con ìinvitadoî y aÒadir registro despuÈs.
+- Persistencia: InMemory al inicio; MongoDB m√°s adelante (proceso incremental).
+- Autenticaci√≥n: an√≥nimos y registrados (JWT). Empezar con ‚Äúinvitado‚Äù y a√±adir registro despu√©s.
 - Tiempo real: SignalR (grupos por mesa). Redis backplane opcional para escalar en el futuro.
-- DesconexiÛn = Fold autom·tico al expirar el turno.
-- Barajado: aleatorio con RNG criptogr·ficamente seguro.
-- M˙ltiples mesas; lobby para descubrir y unirse.
+- Desconexi√≥n = Fold autom√°tico al expirar el turno.
+- Barajado: aleatorio con RNG criptogr√°ficamente seguro.
+- M√∫ltiples mesas; lobby para descubrir y unirse.
 
-Õndice
-1. Arquitectura (visiÛn general)
-2. Estructura de soluciÛn y comandos
+√çndice
+1. Arquitectura (visi√≥n general)
+2. Estructura de soluci√≥n y comandos
 3. Ruta por fases (paso a paso)
 4. Diagramas explicativos
 5. Contratos iniciales de API (borrador)
-6. Persistencia con MongoDB (introducciÛn gradual)
-7. AutenticaciÛn y autorizaciÛn (anÛnimos + JWT)
-8. Tiempo real con SignalR (publicaciÛn de eventos)
-9. Reglas de juego y evoluciÛn
+6. Persistencia con MongoDB (introducci√≥n gradual)
+7. Autenticaci√≥n y autorizaci√≥n (an√≥nimos + JWT)
+8. Tiempo real con SignalR (publicaci√≥n de eventos)
+9. Reglas de juego y evoluci√≥n
 10. Testing y calidad
-11. Observabilidad, despliegue y operaciÛn
-12. PrÛximos pasos
+11. Observabilidad, despliegue y operaci√≥n
+12. Pr√≥ximos pasos
 
-1) Arquitectura (visiÛn general)
+1) Arquitectura (visi√≥n general)
+
+> **NOTA**: Se han eliminado par√©ntesis, etiquetas HTML y saltos de l√≠nea dentro de los nodos para evitar el error de parseo de Mermaid en GitHub.
+
 ```mermaid
-flowchart LR
-  subgraph Api[Api (ASP.NET Core)]
-    Controllers[Controllers REST]
+flowchart TB
+  subgraph API[API ASP.NET Core]
+    Ctrls[Controllers REST]
     Hub[SignalR Hub]
-    Filters[Exception/Validation Filters]
+    Filters[Exception & Validation Filters]
   end
 
-  subgraph Application[Application (CQRS)]
-    Commands[Commands + Handlers]
-    Queries[Queries + Handlers]
-    Behaviors[Behaviors: Validation/Tx/Logging]
-    Ports[(Ports: IUnitOfWork, ITableRepository,\nIPlayerRepository, IEventPublisher)]
+  subgraph APP[Application CQRS]
+    Cmds[Commands & Handlers]
+    Qrys[Queries & Handlers]
+    Behaviors[Pipeline Behaviors Validation Logging Tx]
+    Ports[Ports / Interfaces]
   end
 
-  subgraph Domain[Domain]
-    Entities[Entities/Aggregates: Table, Hand, Player]
-    VOs[Value Objects: Card, Deck, Money, Bet]
-    Services[Domain Services: IShuffler, IHandEvaluator]
-    Events[Domain Events: HandStarted, PlayerActed...]
+  subgraph DOMAIN[Domain]
+    Aggregates[Aggregates: Table Hand Player]
+    VOs[Value Objects: Card Deck Money Bet]
+    DServices[Domain Services: Shuffler HandEvaluator]
+    DEvents[Domain Events]
   end
 
-  subgraph Infra[Infrastructure]
-    Repos[Mongo/InMemory Repositories]
-    Outbox[Outbox (opcional)]
-    RT[SignalR Publisher]
-    Security[JWT/Policies]
-    Clock[DateTimeProvider/Random]
+  subgraph INFRA[Infrastructure]
+    Repos[Repositories InMemory Mongo]
+    Shuffler[CryptoRandomShuffler]
+    Evaluator[HandEvaluator Impl]
+    Publisher[SignalR Event Publisher]
+    Security[Auth JWT]
+    Time[DateTimeProvider]
   end
 
-  Controllers -->|MediatR| Commands
-  Controllers -->|MediatR| Queries
-  Commands --> Ports
-  Queries --> Ports
-  Ports --> Repos
-  Ports --> RT
-  Commands --> Domain
-  Domain --> Events
-  Infra --> Hub
-  Hub -->|Broadcast| Frontend
+  %% Flujo de uso
+  Ctrls --> Cmds
+  Ctrls --> Qrys
+  Cmds --> Ports
+  Qrys --> Ports
+  Ports --> Aggregates
+  Aggregates --> DEvents
+
+  %% Implementaciones desde Infrastructure
+  INFRA --> Ports
+  Publisher --> Hub
+
+  %% Comunicaci√≥n con Frontend
+  Hub --> FE[Frontend React futuro]
+  Ctrls --> FE
 ```
 
-2) Estructura de soluciÛn y comandos
+2) Estructura de soluci√≥n y comandos
 Estructura de proyectos
 - Poker.Domain: modelo de dominio puro, sin dependencias.
 - Poker.Application: casos de uso CQRS, validaciones, mapeos.
@@ -92,7 +101,7 @@ dotnet add Poker.Infrastructure reference Poker.Application Poker.Domain
 dotnet add Poker.Api reference Poker.Application Poker.Infrastructure
 ```
 
-Paquetes recomendados (instalar seg˙n fase)
+Paquetes recomendados (instalar seg√∫n fase)
 - MediatR, FluentValidation, Mapster o AutoMapper.
 - MongoDB.Driver (cuando pases a persistencia real).
 - Microsoft.AspNetCore.SignalR, Swashbuckle.AspNetCore (Swagger).
@@ -141,72 +150,72 @@ Poker.Api/
 ```
 
 3) Ruta por fases (paso a paso)
-Fase 0 ó Bootstrap y utilidades
-- Crear soluciÛn y proyectos (comandos arriba).
-- AÒadir Directory.Build.props con Nullable enable, LangVersion latest y reglas b·sicas.
-- Configurar Serilog mÌnimo a consola.
+Fase 0 ‚Äî Bootstrap y utilidades
+- Crear soluci√≥n y proyectos (comandos arriba).
+- A√±adir Directory.Build.props con Nullable enable, LangVersion latest y reglas b√°sicas.
+- Configurar Serilog m√≠nimo a consola.
 - Swagger + versionado API.
-- Health checks b·sicos.
+- Health checks b√°sicos.
 
-Fase 1 ó Dominio mÌnimo (sin persistencia)
+Fase 1 ‚Äî Dominio m√≠nimo (sin persistencia)
 - Value Objects: Suit, Rank, Card, Deck, Money, Bet, Seat, PlayerId, TableId.
-- Entidades/Aggregates: Player (id, nombre o ìGuest-xxxxî, stack), Table (asientos, blinds, bote, estado de mano), Hand (fase, comunidad, estado por jugador).
-- Servicios de dominio: IShuffler (implementaciÛn CryptoRandomShuffler), IHandEvaluator (stub inicialmente).
+- Entidades/Aggregates: Player (id, nombre o ‚ÄúGuest-xxxx‚Äù, stack), Table (asientos, blinds, bote, estado de mano), Hand (fase, comunidad, estado por jugador).
+- Servicios de dominio: IShuffler (implementaci√≥n CryptoRandomShuffler), IHandEvaluator (stub inicialmente).
 - Eventos de dominio: HandStarted, PlayerActed, CommunityCardsRevealed, PotAwarded, HandEnded.
-- Invariantes: turnos, lÌmites, transiciÛn de fases.
+- Invariantes: turnos, l√≠mites, transici√≥n de fases.
 
-Fase 2 ó Application (CQRS) + InMemory
+Fase 2 ‚Äî Application (CQRS) + InMemory
 - Commands: CreateTable, JoinTable, StartHand, ActOnHand, LeaveTable.
 - Queries: GetTableById, GetLobby, GetCurrentHandState (visible para cada jugador).
 - Behaviors: ValidationBehavior, LoggingBehavior, TransactionBehavior (no-op con InMemory).
 - Repos InMemory en Infrastructure y puertos en Application.
 
-Fase 3 ó API REST
+Fase 3 ‚Äî API REST
 - Controllers: LobbyController, TablesController.
-- Endpoints mÌnimos: POST /tables, POST /tables/{id}/join, POST /tables/{id}/start-hand, POST /tables/{id}/act, GET /tables/{id}, GET /lobby.
-- Manejo de errores: ProblemDetails, filtro global de excepciones/validaciÛn.
+- Endpoints m√≠nimos: POST /tables, POST /tables/{id}/join, POST /tables/{id}/start-hand, POST /tables/{id}/act, GET /tables/{id}, GET /lobby.
+- Manejo de errores: ProblemDetails, filtro global de excepciones/validaci√≥n.
 
-Fase 4 ó Tiempo real (SignalR)
+Fase 4 ‚Äî Tiempo real (SignalR)
 - Hub: TableHub (/hubs/table), grupos por table-{id}.
-- IEventPublisher en Application; implementaciÛn en Infrastructure que publica a SignalR.
-- Publicar eventos cuando alguien act˙e/empezar/termine mano: TableUpdated, PlayerActed, HandStarted, HandEnded.
+- IEventPublisher en Application; implementaci√≥n en Infrastructure que publica a SignalR.
+- Publicar eventos cuando alguien act√∫e/empezar/termine mano: TableUpdated, PlayerActed, HandStarted, HandEnded.
 - Cliente (front futuro) se suscribe por mesa.
 
-Fase 5 ó AutenticaciÛn (anÛnimo + JWT)
+Fase 5 ‚Äî Autenticaci√≥n (an√≥nimo + JWT)
 - Endpoint: POST /auth/guest -> devuelve JWT con PlayerId y rol Guest.
 - Middleware para extraer PlayerId y asociarlo al contexto.
-- PolÌticas simples: autenticado para jugar; p˙blico para lobby.
+- Pol√≠ticas simples: autenticado para jugar; p√∫blico para lobby.
 - Registro/login real diferido (futuro).
 
-Fase 6 ó GestiÛn de turno, desconexiÛn y timeouts
+Fase 6 ‚Äî Gesti√≥n de turno, desconexi√≥n y timeouts
 - Track de conexiones SignalR por PlayerId.
-- Si el jugador con turno se desconecta o expira el timeout, aplicar Fold autom·tico.
-- BackgroundService/Timer por mesa para controlar ventanas de acciÛn.
+- Si el jugador con turno se desconecta o expira el timeout, aplicar Fold autom√°tico.
+- BackgroundService/Timer por mesa para controlar ventanas de acci√≥n.
 
-Fase 7 ó Persistencia MongoDB (opcional de forma incremental)
-- AÒadir MongoDB.Driver.
+Fase 7 ‚Äî Persistencia MongoDB (opcional de forma incremental)
+- A√±adir MongoDB.Driver.
 - Implementar repos Mongo para Table y Player.
 - Configurar mapeos (BsonClassMap) para VOs y agregados.
-- MigraciÛn de datos InMemory -> Mongo (si es necesario).
-- Feature flag para elegir InMemory/Mongo por configuraciÛn.
+- Migraci√≥n de datos InMemory -> Mongo (si es necesario).
+- Feature flag para elegir InMemory/Mongo por configuraci√≥n.
 
-Fase 8 ó Reglas avanzadas y evaluaciÛn de manos
-- Implementar evaluaciÛn de manos completa (combinaciones, desempates).
+Fase 8 ‚Äî Reglas avanzadas y evaluaci√≥n de manos
+- Implementar evaluaci√≥n de manos completa (combinaciones, desempates).
 - Side pots, all-ins, showdowns, rake (si aplica).
-- Pruebas de propiedades para verificaciÛn masiva.
+- Pruebas de propiedades para verificaci√≥n masiva.
 
-Fase 9 ó Observabilidad y endurecimiento
+Fase 9 ‚Äî Observabilidad y endurecimiento
 - Tracing con OpenTelemetry (Requests, Commands/Queries).
-- MÈtricas del juego (manos/hora, latencias, acciones por fase).
+- M√©tricas del juego (manos/hora, latencias, acciones por fase).
 - Rate limiting de acciones.
 
-Fase 10 ó Docker y orquestaciÛn local
+Fase 10 ‚Äî Docker y orquestaci√≥n local
 - Dockerfile para Api; docker-compose para Api + Mongo + (opcional) Redis.
-- Seeds b·sicos (opcional): crear mesas de ejemplo al inicio.
+- Seeds b√°sicos (opcional): crear mesas de ejemplo al inicio.
 
-Fase 11 ó Escalabilidad y backplane (futuro)
-- AÒadir Redis backplane a SignalR si escalas a m˙ltiples rÈplicas.
-- Outbox para publicaciÛn fiable de eventos (si separas procesos).
+Fase 11 ‚Äî Escalabilidad y backplane (futuro)
+- A√±adir Redis backplane a SignalR si escalas a m√∫ltiples r√©plicas.
+- Outbox para publicaci√≥n fiable de eventos (si separas procesos).
 
 4) Diagramas explicativos
 4.1 Flujo CQRS (solicitud REST)
@@ -228,7 +237,7 @@ sequenceDiagram
   APP-->>API: Result DTO (estado visible)
 ```
 
-4.2 PublicaciÛn en tiempo real con SignalR
+4.2 Publicaci√≥n en tiempo real con SignalR
 ```mermaid
 sequenceDiagram
   participant APP as Application
@@ -290,85 +299,85 @@ graph TD
   - server->client: TableUpdated, PlayerActed, HandStarted, HandEnded
   - grupos: table-{tableId}
 
-6) Persistencia con MongoDB (introducciÛn gradual)
-- Fase inicial: Repositorios InMemory para simplicidad y tests r·pidos.
+6) Persistencia con MongoDB (introducci√≥n gradual)
+- Fase inicial: Repositorios InMemory para simplicidad y tests r√°pidos.
 - Fase Mongo:
   - Paquete: MongoDB.Driver.
-  - ConfiguraciÛn: appsettings -> ConnectionString, DatabaseName.
+  - Configuraci√≥n: appsettings -> ConnectionString, DatabaseName.
   - BsonClassMap/Serializer para Value Objects (Card, Money, etc.).
   - Repositorios:
     - TableRepository: colecciones Tables (con snapshots del agregado).
     - PlayerRepository: colecciones Players.
-  - Transacciones: para operaciones simples, una operaciÛn/colecciÛn suele bastar. Si necesitas atomicidad multi-documento, usar transacciones con sesiones (no imprescindible al inicio).
+  - Transacciones: para operaciones simples, una operaci√≥n/colecci√≥n suele bastar. Si necesitas atomicidad multi-documento, usar transacciones con sesiones (no imprescindible al inicio).
 - Outbox (opcional):
-  - ColecciÛn OutboxEvents { id, type, payload, createdAt, processedAt }.
+  - Colecci√≥n OutboxEvents { id, type, payload, createdAt, processedAt }.
   - BackgroundService que reintenta publicar a SignalR/bus y marca processedAt.
 
-7) AutenticaciÛn y autorizaciÛn (anÛnimos + JWT)
+7) Autenticaci√≥n y autorizaci√≥n (an√≥nimos + JWT)
 - Endpoint POST /auth/guest:
   - Genera PlayerId y token JWT con claim sub=PlayerId, role=Guest.
-- PolÌtica:
-  - Lobby p˙blico.
-  - Endpoints de juego requieren autenticaciÛn (guest o user).
+- Pol√≠tica:
+  - Lobby p√∫blico.
+  - Endpoints de juego requieren autenticaci√≥n (guest o user).
 - Futuro:
   - Registro/login con identidad externa o base propia.
 
-8) Tiempo real con SignalR (publicaciÛn de eventos)
+8) Tiempo real con SignalR (publicaci√≥n de eventos)
 - Hub TableHub:
-  - MÈtodo: JoinTableGroup(tableId) -> agrega a grupo.
+  - M√©todo: JoinTableGroup(tableId) -> agrega a grupo.
 - Publicador de eventos:
-  - IEventPublisher en Application; implementaciÛn con hub context en Infrastructure.
+  - IEventPublisher en Application; implementaci√≥n con hub context en Infrastructure.
 - Escalado futuro:
-  - Redis backplane para coordinar m˙ltiples instancias.
+  - Redis backplane para coordinar m√∫ltiples instancias.
 - Alternativas (si alguna vez las necesitas):
-  - SSE para ìpushî unidireccional simple.
-  - WebSockets puros para control total (m·s trabajo).
+  - SSE para ‚Äúpush‚Äù unidireccional simple.
+  - WebSockets puros para control total (m√°s trabajo).
 
-9) Reglas de juego y evoluciÛn
+9) Reglas de juego y evoluci√≥n
 Iteraciones sugeridas:
-- IteraciÛn 1: flujo b·sico sin side pots, check/call/bet/raise/fold, transiciÛn de fases autom·tica.
-- IteraciÛn 2: all-in y side pots.
-- IteraciÛn 3: evaluaciÛn de manos completa y desempates.
-- IteraciÛn 4: timeouts configurables, auto-fold, rejoin.
-- IteraciÛn 5: rake/fees (si aplica), lÌmites de mesa, buy-in/rebuys.
+- Iteraci√≥n 1: flujo b√°sico sin side pots, check/call/bet/raise/fold, transici√≥n de fases autom√°tica.
+- Iteraci√≥n 2: all-in y side pots.
+- Iteraci√≥n 3: evaluaci√≥n de manos completa y desempates.
+- Iteraci√≥n 4: timeouts configurables, auto-fold, rejoin.
+- Iteraci√≥n 5: rake/fees (si aplica), l√≠mites de mesa, buy-in/rebuys.
 
 10) Testing y calidad
 - Domain: unit tests de invariantes y estado de la mano.
 - Application: tests de handlers (dobles de repos y shuffler).
-- Infrastructure: integraciÛn con Mongo (Testcontainers o docker-compose).
+- Infrastructure: integraci√≥n con Mongo (Testcontainers o docker-compose).
 - API: e2e con WebApplicationFactory.
-- Property-based testing: barajado y evaluaciÛn de manos.
+- Property-based testing: barajado y evaluaci√≥n de manos.
 
-11) Observabilidad, despliegue y operaciÛn
+11) Observabilidad, despliegue y operaci√≥n
 - Logging: Serilog (console, Seq opcional).
 - Tracing/Metrics: OpenTelemetry (Requests, Commands, SignalR).
 - Health checks: Mongo, SignalR.
 - Docker:
   - Dockerfile para Api.
   - docker-compose: Api + MongoDB (+ opcional Redis).
-- Seguridad b·sica:
-  - Rate limiting en endpoints de acciÛn.
-  - ValidaciÛn estricta de inputs.
+- Seguridad b√°sica:
+  - Rate limiting en endpoints de acci√≥n.
+  - Validaci√≥n estricta de inputs.
 
-12) PrÛximos pasos (checklist de arranque)
-- [ ] Crear soluciÛn, proyectos y referencias.
-- [ ] AÒadir Directory.Build.props y paquetes base (MediatR, FluentValidation, Swagger, Serilog).
-- [ ] Modelar Domain mÌnimo: Card/Deck, Table, Player, Hand, eventos.
+12) Pr√≥ximos pasos (checklist de arranque)
+- [ ] Crear soluci√≥n, proyectos y referencias.
+- [ ] A√±adir Directory.Build.props y paquetes base (MediatR, FluentValidation, Swagger, Serilog).
+- [ ] Modelar Domain m√≠nimo: Card/Deck, Table, Player, Hand, eventos.
 - [ ] Application: Commands/Queries + Behaviors + Repos en puertos.
 - [ ] Infrastructure: Repos InMemory + CryptoRandomShuffler.
-- [ ] API: Endpoints mÌnimos + filtros + Swagger.
-- [ ] SignalR: Hub + publicaciÛn de TableUpdated.
-- [ ] AutenticaciÛn guest (JWT) y polÌticas.
+- [ ] API: Endpoints m√≠nimos + filtros + Swagger.
+- [ ] SignalR: Hub + publicaci√≥n de TableUpdated.
+- [ ] Autenticaci√≥n guest (JWT) y pol√≠ticas.
 - [ ] Timeouts/auto-fold en BackgroundService.
 - [ ] Tests base (domain + e2e simple).
 - [ ] Introducir MongoDB y repos reales (feature flag para alternar).
-- [ ] MÈtricas y health checks.
+- [ ] M√©tricas y health checks.
 
-ApÈndice A ó Snippets iniciales (nombres y conceptos)
+Ap√©ndice A ‚Äî Snippets iniciales (nombres y conceptos)
 - Interfaces clave (puertos, ejemplos):
   - ITableRepository, IPlayerRepository.
   - IEventPublisher (para SignalR).
-  - IUnitOfWork (no-op o por operaciÛn en Mongo).
+  - IUnitOfWork (no-op o por operaci√≥n en Mongo).
   - IShuffler (CryptoRandom).
 - Eventos de dominio propuestos:
   - HandStarted, CommunityCardsRevealed, PlayerActed, PotAwarded, HandEnded.
@@ -376,9 +385,9 @@ ApÈndice A ó Snippets iniciales (nombres y conceptos)
 Nota final
 - Dado que es un proyecto formativo, prioriza:
   1) Dominio correcto y bien probado.
-  2) CQRS claro con Handlers pequeÒos.
-  3) SeÒalizaciÛn de eventos a front con SignalR.
-  4) Persistencia real (Mongo) cuando el flujo b·sico sea estable.
+  2) CQRS claro con Handlers peque√±os.
+  3) Se√±alizaci√≥n de eventos a front con SignalR.
+  4) Persistencia real (Mongo) cuando el flujo b√°sico sea estable.
 
 ```mermaid
 mindmap
@@ -397,11 +406,11 @@ mindmap
       Timeouts
     Persistencia
       InMemory primero
-      MongoDB despuÈs
+      MongoDB despu√©s
     Calidad
       Tests
       Observabilidad
       Seguridad
 ```
 
-øSiguiente acciÛn? Empezar por Fase 0 y 1. Si quieres, puedo generar una plantilla de clases/archivos vacÌos para cada proyecto y un Program.cs con Swagger, SignalR y Serilog ya configurados.
+¬øSiguiente acci√≥n? Empezar por Fase 0 y 1. Si quieres, puedo generar una plantilla de clases/archivos vac√≠os para cada proyecto y un Program.cs con Swagger, SignalR y Serilog ya configurados.
